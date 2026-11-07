@@ -83,6 +83,30 @@ A weighted milestone contributes its weight to the bar instead of its checkbox
 count, and the global percentage becomes the weighted average. Milestones without
 a weight keep their checkbox count.
 
+## Compatible with `writing-plans` and `executing-plans`
+
+A plan written by the `writing-plans` skill needs no conversion:
+
+| In the plan | Becomes |
+|---|---|
+| `# [Feature] Implementation Plan` | the document title (never a milestone) |
+| `### Task N: [name]` | one milestone per task |
+| `- [ ] **Step N**` | one task inside that milestone |
+
+Milestones are the shallowest heading level that holds checkboxes, with one
+refinement: a heading that only *contains* deeper sections (a lone
+`## Global Constraints` wrapping every task) owns no checkbox of its own and the
+parser descends past it. Without that rule the whole plan collapsed into a single
+milestone called after the container.
+
+`executing-plans` ticks the plan's checkboxes as each task closes, so the pane
+moves with the execution and nothing has to be re-imported. Register the plan
+once at the start (`plan_track` with `action="add"`) and it follows the run.
+
+Plans are found automatically in `~/.hermes/plans/` and, inside a repository,
+`docs/superpowers/plans/` (the `writing-plans` default) - the latter only when the
+plugin is asked about the current working directory.
+
 ## Configuration
 
 | Variable | Default | Effect |

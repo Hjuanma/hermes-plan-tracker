@@ -236,32 +236,92 @@ def _title_line(
     return first_ln
 
 
-def _find_milestone_level(
+def _sections_with_checkboxes(
     headings: List[Tuple[int, str, int]],
     checkboxes: List[Tuple[bool, int]],
+    level: int,
     skip_line: int = 0,
-) -> int:
-    """Return the shallowest heading level (1..4) that has at least one section
-    containing at least one checkbox.
+) -> List[Tuple[str, int]]:
+    """Return the (name, line) of every level-*level* section holding a checkbox.
 
     A section at level L starts at a heading of level L and ends at the next
     heading of level <= L (or end of file). The heading at *skip_line* (the
     document title) never counts.
     """
-    for L in range(1, 5):
-        l_headings = [
-            (name, h_ln)
-            for (lvl, name, h_ln) in headings
-            if lvl == L and h_ln != skip_line
-        ]
-        if not l_headings:
+    found: List[Tuple[str, int]] = []
+    for lvl, name, h_ln in headings:
+        if lvl != level or h_ln == skip_line:
             continue
-        for _, h_ln in l_headings:
-            next_ln = _section_end(h_ln, headings, L)
-            cb_count = sum(1 for _, cb_ln in checkboxes if h_ln <= cb_ln < next_ln)
-            if cb_count > 0:
-                return L
-    return 1
+        next_ln = _section_end(h_ln, headings, level)
+        if any(h_ln <= cb_ln < next_ln for _, cb_ln in checkboxes):
+            found.append((name, h_ln))
+    return found
+
+
+def _first_deeper_line(
+    h_ln: int, headings: List[Tuple[int, str, int]], level: int
+) -> int:
+    """Return the first heading line below h_ln whose level is deeper than *level*."""
+    for lvl, _, line in headings:
+        if line > h_ln and lvl > level:
+            return line
+    return 1 << 30
+
+
+def _has_own_checkbox(
+    h_ln: int,
+    level: int,
+    headings: List[Tuple[int, str, int]],
+    checkboxes: List[Tuple[bool, int]],
+) -> bool:
+    """True when the section has a checkbox before any deeper heading.
+
+    A container heading (``## Global Constraints`` in a writing-plans plan)
+    carries prose only: every checkbox that falls inside it belongs to a deeper
+    subsection, so the container is not a milestone of its own.
+    """
+    stop = _first_deeper_line(h_ln, headings, level)
+    return any(h_ln < cb_ln < stop for _, cb_ln in checkboxes)
+
+
+def _find_milestone_level(
+    headings: List[Tuple[int, str, int]],
+    checkboxes: List[Tuple[bool, int]],
+    skip_line: int = 0,
+) -> int:
+    """Return the heading level (1..4) that defines the milestones.
+
+    Start at the shallowest level holding a checkbox. If that level has exactly
+    ONE such section and it owns no checkbox of its own - a pure container that
+    spans the whole document, as in a writing-plans plan - descend to the next
+    level that holds checkboxes and try again. A grouping heading that owns a
+    checkbox directly keeps its level, so a single-milestone plan still reports
+    one milestone.
+    """
+    level = 0
+    for candidate in range(1, 5):
+        if _sections_with_checkboxes(headings, checkboxes, candidate, skip_line):
+            level = candidate
+            break
+    if not level:
+        return 1
+
+    while level < 4:
+        sections = _sections_with_checkboxes(headings, checkboxes, level, skip_line)
+        if len(sections) != 1:
+            break
+        _, h_ln = sections[0]
+        if _has_own_checkbox(h_ln, level, headings, checkboxes):
+            break
+        deeper = [
+            candidate
+            for candidate in range(level + 1, 5)
+            if _sections_with_checkboxes(headings, checkboxes, candidate, skip_line)
+        ]
+        if not deeper:
+            break
+        level = deeper[0]
+    return level
 
 
 def _section_end(
@@ -443,6 +503,7 @@ def scan_roots(
                 else str(Path.home() / ".hermes" / "plans"))
     if cwd:
         dirs.append(str(Path(cwd) / ".hermes" / "plans"))
+        dirs.append(str(Path(cwd) / "docs" / "superpowers" / "plans"))
     if extra_roots:
         dirs.extend(extra_roots)
     env_roots = os.environ.get("PLAN_TRACKER_ROOTS", "").strip()

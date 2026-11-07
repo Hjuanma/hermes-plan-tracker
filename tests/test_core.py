@@ -512,8 +512,79 @@ class TestOptionalRealPlan(unittest.TestCase):
         self.assertEqual(plan.done, expected_done)
 
 
+class TestMilestoneLevelDescent(unittest.TestCase):
+    """A level that yields a single milestone is not fine-grained enough."""
+
+    WRITING_PLANS = """# Demo Feature Implementation Plan
+
+**Goal:** demo
+
+## Global Constraints
+
+- version floor 1.2
+
+---
+
+### Task 1: Bootstrap
+
+- [ ] **Step 1: Write the failing test**
+- [ ] **Step 2: Run it**
+
+### Task 2: API
+
+- [x] **Step 1: Write the failing test**
+- [ ] **Step 2: Run it**
+
+### Task 3: UI
+
+- [x] **Step 1: Write the failing test**
+- [x] **Step 2: Run it**
+"""
+
+    def _parse(self, text: str):
+        import tempfile
+        fd, path = tempfile.mkstemp(suffix=".md")
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        self.addCleanup(os.unlink, path)
+        return parse_plan(path)
+
+    def test_descends_when_one_heading_swallows_the_whole_plan(self) -> None:
+        plan = self._parse(self.WRITING_PLANS)
+        self.assertEqual(
+            [m.name for m in plan.milestones],
+            ["Task 1: Bootstrap", "Task 2: API", "Task 3: UI"],
+            "a single H2 must not swallow every task",
+        )
+        self.assertEqual([(m.done, m.total) for m in plan.milestones], [(0, 2), (1, 2), (2, 2)])
+
+    def test_keeps_the_shallow_level_when_it_already_has_several_sections(self) -> None:
+        plan = self._parse(
+            "# Plan\n\n## A\n- [ ] a1\n- [ ] a2\n\n### A details\n\n## B\n- [ ] b1\n"
+        )
+        self.assertEqual([m.name for m in plan.milestones], ["A", "B"])
+
+    def test_single_milestone_plan_still_works(self) -> None:
+        plan = self._parse("# Plan\n\n## Only phase\n- [ ] a\n- [x] b\n")
+        self.assertEqual([m.name for m in plan.milestones], ["Only phase"])
+        self.assertEqual(plan.done, 1)
+        self.assertEqual(plan.total, 2)
+
+
 class TestScanRoots(unittest.TestCase):
     """Root scanning with dedup."""
+
+    def test_finds_writing_plans_default_location(self) -> None:
+        """`docs/superpowers/plans/` is where the writing-plans skill saves."""
+        with tempfile.TemporaryDirectory() as td:
+            repo = os.path.join(td, "repo")
+            plans = os.path.join(repo, "docs", "superpowers", "plans")
+            os.makedirs(plans)
+            wanted = os.path.join(plans, "2026-01-01-feature.md")
+            with open(wanted, "w") as fh:
+                fh.write("# Feature Implementation Plan\n## A\n- [ ] step\n")
+            found = [str(f) for f in scan_roots(os.path.join(td, "home"), cwd=repo)]
+            self.assertIn(wanted, found)
 
     def test_scan_returns_empty_when_no_roots(self) -> None:
         with tempfile.TemporaryDirectory() as td:

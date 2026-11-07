@@ -3,7 +3,7 @@
   "label": "Plan Tracker",
   "description": "Tracks milestone progress from .hermes/plans markdown checkboxes.",
   "icon": "Checklist",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "api": "plugin_api.py",
   "tab": {
     "hidden": true
