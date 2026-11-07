@@ -1,0 +1,27 @@
+name: plan-tracker
+version: "0.5.0"
+description: >
+  Track the markdown plans you already write: milestone progress bars from the
+  checkboxes in your .md files, in a dockable pane plus a status-bar chip, with
+  per-milestone effort (time, tokens, cost, models, subagents), ETA, history
+  chart, per-session and global scopes, hash-guarded task ticking, blocked
+  milestones, optional per-milestone weights and markdown export.
+author: "Juan Manuel"
+license: MIT
+homepage: "https://github.com/Hjuanma/hermes-plan-tracker"
+kind: standalone
+requires_hermes: ">=0.23.0"
+platforms:
+  - linux
+  - macos
+tags:
+  - plans
+  - progress
+  - desktop
+  - tracking
+  - effort
+provides_tools:
+  - plan_track
+provides_hooks: []
+provides_middleware: []
+requires_env: []
